@@ -69,7 +69,7 @@ The product roadmap lives in [ROADMAP.md](./ROADMAP.md). It tracks the current b
 
 ## Release docs
 
-Release instructions live in [docs/publishing.md](./docs/publishing.md), and the step-by-step operator checklist lives in [docs/release-methodology.md](./docs/release-methodology.md).
+Public release instructions live in [docs/publishing.md](./docs/publishing.md).
 
 ## Health check
 
