@@ -1,0 +1,16 @@
+{
+  "name": "codex-telegram-notifier",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Standalone Telegram notifier for Codex task and automation results",
+  "type": "module",
+  "bin": {
+    "codex-telegram-notify": "./src/index.mjs"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
