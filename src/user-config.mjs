@@ -6,6 +6,9 @@ export const CLI_NAME = "codex-telegram-notifier";
 export const LEGACY_CLI_NAME = "codex-telegram-notify";
 export const MANAGED_BLOCK_START = "<!-- codex-telegram-notifier:start -->";
 export const MANAGED_BLOCK_END = "<!-- codex-telegram-notifier:end -->";
+export const INSTRUCTION_MODES = ["basic", "rich", "automation"];
+export const DEFAULT_INSTALL_MODE = "basic";
+export const DEFAULT_PRINT_INSTRUCTIONS_MODE = "rich";
 
 export function getUserConfigPaths(
   env = process.env,
@@ -44,6 +47,11 @@ export function normalizeStoredConfig(raw) {
       typeof raw.notifierAuthToken === "string" ? raw.notifierAuthToken : undefined,
     disableNotification:
       typeof raw.disableNotification === "boolean" ? raw.disableNotification : undefined,
+    codexInstructionMode:
+      typeof raw.codexInstructionMode === "string" &&
+      INSTRUCTION_MODES.includes(raw.codexInstructionMode)
+        ? raw.codexInstructionMode
+        : undefined,
     installedAt: typeof raw.installedAt === "string" ? raw.installedAt : undefined,
     updatedAt: typeof raw.updatedAt === "string" ? raw.updatedAt : undefined,
   };
@@ -96,16 +104,41 @@ export function deleteStoredConfig(paths = getUserConfigPaths()) {
   return true;
 }
 
-export function buildManagedAgentsBlock(commandName = CLI_NAME) {
+export function resolveInstructionMode(mode, fallbackMode = DEFAULT_INSTALL_MODE) {
+  const normalized =
+    typeof mode === "string" && mode.trim() ? mode.trim().toLowerCase() : fallbackMode;
+
+  if (!INSTRUCTION_MODES.includes(normalized)) {
+    throw new Error(
+      `Invalid instruction mode "${mode}". Use ${INSTRUCTION_MODES.join(", ")}.`,
+    );
+  }
+
+  return normalized;
+}
+
+export function buildInstructionBlock(
+  commandName = CLI_NAME,
+  mode = DEFAULT_INSTALL_MODE,
+) {
+  const resolvedMode = resolveInstructionMode(mode);
+  // Keep one source of truth for both managed installs and printable instruction templates.
   return [
-    MANAGED_BLOCK_START,
     "Telegram notifications",
     "",
-    `After completing a task successfully, run \`${commandName} send --status success --title "Codex task finished" --message "<brief summary>"\`.`,
-    "",
-    `If the task fails or is blocked, run \`${commandName} send --status failure --title "Codex task failed" --message "<brief summary>"\`.`,
+    ...buildModeInstructionLines(commandName, resolvedMode),
     "",
     "Apply this in every project unless the user explicitly says not to send a Telegram notification.",
+  ].join("\n");
+}
+
+export function buildManagedAgentsBlock(
+  commandName = CLI_NAME,
+  mode = DEFAULT_INSTALL_MODE,
+) {
+  return [
+    MANAGED_BLOCK_START,
+    buildInstructionBlock(commandName, mode),
     MANAGED_BLOCK_END,
   ].join("\n");
 }
@@ -124,7 +157,8 @@ export function isManagedAgentsBlockInstalled(content) {
 export function upsertManagedAgentsBlock(
   content,
   commandName = CLI_NAME,
-  block = buildManagedAgentsBlock(commandName),
+  modeOrBlock = DEFAULT_INSTALL_MODE,
+  block = resolveManagedBlock(commandName, modeOrBlock),
 ) {
   const normalizedContent = content.trim();
   const nextContent = isManagedAgentsBlockInstalled(content)
@@ -139,12 +173,16 @@ export function removeManagedAgentsBlock(content) {
   return withoutBlock.replace(/\n{3,}/gu, "\n\n").trim();
 }
 
-export function installManagedAgentsBlock(paths = getUserConfigPaths(), commandName = CLI_NAME) {
+export function installManagedAgentsBlock(
+  paths = getUserConfigPaths(),
+  commandName = CLI_NAME,
+  mode = DEFAULT_INSTALL_MODE,
+) {
   fs.mkdirSync(paths.codexHome, { recursive: true, mode: 0o700 });
   const currentContent = fs.existsSync(paths.agentsPath)
     ? fs.readFileSync(paths.agentsPath, "utf8")
     : "";
-  const nextContent = upsertManagedAgentsBlock(currentContent, commandName);
+  const nextContent = upsertManagedAgentsBlock(currentContent, commandName, mode);
   fs.writeFileSync(paths.agentsPath, `${nextContent}${nextContent.endsWith("\n") ? "" : "\n"}`, {
     encoding: "utf8",
   });
@@ -179,4 +217,68 @@ export function uninstallManagedAgentsBlock(paths = getUserConfigPaths()) {
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+}
+
+function buildModeInstructionLines(commandName, mode) {
+  if (mode === "basic") {
+    return [
+      `After completing a task successfully, run \`${commandName} send --status success --title "Codex task finished" --message "<brief summary>"\`.`,
+      "",
+      `If the task fails or is blocked, run \`${commandName} send --status failure --title "Codex task failed" --message "<brief summary>"\`.`,
+    ];
+  }
+
+  if (mode === "rich") {
+    return [
+      `After completing a task, always run \`${commandName} send\` to report the outcome.`,
+      "",
+      "If the task succeeds:",
+      "- use `--status success`",
+      "- set `--message` to a concise summary of what changed",
+      "- use `--details` for the most useful result details, such as key files, counts, URLs, or report paths",
+      "",
+      "If the task fails or is blocked:",
+      "- use `--status failure`",
+      "- set `--message` to the actual blocker or failure",
+      "- use `--details` for the best next step, missing dependency, or artifact path",
+      "",
+      "If the task completes but still needs review:",
+      "- use `--status warning`",
+      "- say what needs review in `--message`",
+      "- use `--details` for the main findings, counts, or follow-up action",
+    ];
+  }
+
+  return [
+    `After completing a task or automation, always run \`${commandName} send\` to report the result.`,
+    "",
+    "If the run succeeds:",
+    "- use `--status success` when everything is complete and no review is needed",
+    '- set `--message` to the actual outcome, not just "done"',
+    "- use `--details` for the most useful counts, report paths, artifact paths, URLs, or changed files",
+    "",
+    "If the run fails or is blocked:",
+    "- use `--status failure`",
+    "- set `--message` to the blocker or failure reason",
+    "- use `--details` for the failed step, exit code, report path, or the next action required",
+    "",
+    "If the run completed but still needs review:",
+    "- use `--status warning`",
+    "- say what needs review in `--message`",
+    "- use `--details` for failing counts, blocker summaries, artifact paths, and follow-up actions",
+    "",
+    "For unattended runs, prefer including:",
+    "- counts of passed, failed, skipped, or changed items",
+    "- artifact, log, and report paths",
+    "- PR, preview, deployment, or dashboard URLs when available",
+    "- the clearest next action if someone needs to intervene",
+  ];
+}
+
+function resolveManagedBlock(commandName, modeOrBlock) {
+  if (typeof modeOrBlock === "string" && modeOrBlock.includes(MANAGED_BLOCK_START)) {
+    return modeOrBlock;
+  }
+
+  return buildManagedAgentsBlock(commandName, resolveInstructionMode(modeOrBlock));
 }

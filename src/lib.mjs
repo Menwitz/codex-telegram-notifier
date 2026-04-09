@@ -405,6 +405,7 @@ export function parseInstallArgs(argv) {
       "thread-id": { type: "string" },
       "api-base": { type: "string" },
       "auth-token": { type: "string" },
+      mode: { type: "string" },
       silent: { type: "boolean" },
       "skip-agents": { type: "boolean" },
     },
@@ -421,6 +422,7 @@ export function parseInstallArgs(argv) {
     threadId: values["thread-id"],
     apiBase: values["api-base"],
     authToken: values["auth-token"],
+    mode: values.mode,
     disableNotification: values.silent === true,
     skipAgents: values["skip-agents"] === true,
   };

@@ -27,11 +27,13 @@ import {
 } from "./lib.mjs";
 import {
   CLI_NAME,
+  DEFAULT_INSTALL_MODE,
   deleteStoredConfig,
   getUserConfigPaths,
   installManagedAgentsBlock,
   isManagedAgentsBlockInstalled,
   readStoredConfig,
+  resolveInstructionMode,
   uninstallManagedAgentsBlock,
   writeStoredConfig,
 } from "./user-config.mjs";
@@ -279,6 +281,7 @@ Options:
   --thread-id <topic-id>
   --api-base <url>
   --auth-token <token>
+  --mode <basic|rich|automation>
   --silent
   --skip-agents
   -h, --help
@@ -288,6 +291,7 @@ Options:
   }
 
   const storedConfig = getStoredConfig();
+  const mode = resolveInstructionMode(options.mode ?? storedConfig.codexInstructionMode, DEFAULT_INSTALL_MODE);
   const config = resolveTelegramConfig({
     token: options.token,
     chatId: options.chatId,
@@ -311,12 +315,13 @@ Options:
       telegramApiBase: config.apiBase,
       notifierAuthToken: authToken,
       disableNotification: config.disableNotification,
+      codexInstructionMode: mode,
     },
     USER_CONFIG_PATHS,
   );
 
   if (!options.skipAgents) {
-    installManagedAgentsBlock(USER_CONFIG_PATHS, CLI_NAME);
+    installManagedAgentsBlock(USER_CONFIG_PATHS, CLI_NAME, mode);
   }
 
   process.stdout.write(
@@ -326,6 +331,7 @@ Options:
       options.skipAgents
         ? "AGENTS.md: skipped"
         : `AGENTS.md: ${USER_CONFIG_PATHS.agentsPath}`,
+      `mode: ${mode}`,
       `chat id: ${savedConfig.telegramChatId}`,
     ].join("\n") + "\n",
   );

@@ -5,11 +5,13 @@ import os from "node:os";
 import path from "node:path";
 import {
   CLI_NAME,
+  buildInstructionBlock,
   buildManagedAgentsBlock,
   getUserConfigPaths,
   installManagedAgentsBlock,
   readStoredConfig,
   removeManagedAgentsBlock,
+  resolveInstructionMode,
   uninstallManagedAgentsBlock,
   upsertManagedAgentsBlock,
   writeStoredConfig,
@@ -49,6 +51,7 @@ test("writeStoredConfig persists normalized config to disk", () => {
       telegramBotToken: "token",
       telegramChatId: "chat",
       notifierAuthToken: "auth",
+      codexInstructionMode: "rich",
     },
     paths,
   );
@@ -58,8 +61,26 @@ test("writeStoredConfig persists normalized config to disk", () => {
   assert.equal(stored.config.telegramBotToken, "token");
   assert.equal(stored.config.telegramChatId, "chat");
   assert.equal(stored.config.notifierAuthToken, "auth");
+  assert.equal(stored.config.codexInstructionMode, "rich");
   assert.ok(stored.config.installedAt);
   assert.ok(stored.config.updatedAt);
+});
+
+test("resolveInstructionMode validates supported modes", () => {
+  assert.equal(resolveInstructionMode("automation"), "automation");
+  assert.equal(resolveInstructionMode(undefined, "rich"), "rich");
+  assert.throws(() => resolveInstructionMode("loud"), /Invalid instruction mode/);
+});
+
+test("buildInstructionBlock renders richer install profiles", () => {
+  assert.match(
+    buildInstructionBlock(CLI_NAME, "rich"),
+    /If the task completes but still needs review:/,
+  );
+  assert.match(
+    buildInstructionBlock(CLI_NAME, "automation"),
+    /For unattended runs, prefer including:/,
+  );
 });
 
 test("upsertManagedAgentsBlock appends and replaces the managed block", () => {
@@ -68,12 +89,13 @@ test("upsertManagedAgentsBlock appends and replaces the managed block", () => {
   assert.match(firstPass, /Existing rule/);
   assert.match(firstPass, /codex-telegram-notifier:start/);
 
-  const secondPass = upsertManagedAgentsBlock(firstPass, "custom-command");
-  assert.match(secondPass, /custom-command send --status success/);
+  const secondPass = upsertManagedAgentsBlock(firstPass, "custom-command", "rich");
+  assert.match(secondPass, /custom-command send/);
   assert.equal(
     secondPass.includes("codex-telegram-notifier send --status success"),
     false,
   );
+  assert.match(secondPass, /If the task completes but still needs review:/);
 });
 
 test("removeManagedAgentsBlock leaves surrounding content intact", () => {
@@ -101,10 +123,11 @@ test("installManagedAgentsBlock and uninstallManagedAgentsBlock manage AGENTS.md
   fs.mkdirSync(paths.codexHome, { recursive: true });
   fs.writeFileSync(paths.agentsPath, "Existing rule\n", "utf8");
 
-  installManagedAgentsBlock(paths, CLI_NAME);
+  installManagedAgentsBlock(paths, CLI_NAME, "automation");
   const installed = fs.readFileSync(paths.agentsPath, "utf8");
   assert.match(installed, /Existing rule/);
   assert.match(installed, /codex-telegram-notifier:start/);
+  assert.match(installed, /For unattended runs, prefer including:/);
 
   const result = uninstallManagedAgentsBlock(paths);
   assert.deepEqual(result, {
