@@ -2,43 +2,51 @@
 
 This package is published as `codex-telegram-notifier`.
 
-## Before you publish
+## One-time setup
 
-1. Make sure `npm test` passes.
-2. Verify the CLI entrypoint and packed contents:
+1. Publish the package manually at least once from your machine if npm does not already know about it.
+2. In the npm package settings, configure a trusted publisher for this repository:
+   - GitHub user or organization: `Menwitz`
+   - Repository: `codex-telegram-notifier`
+   - Workflow filename: `publish.yml`
+3. After the trusted publisher is configured, npm releases should come from GitHub Actions instead of a long-lived npm token.
+
+## Before a release
+
+Run the local checks:
 
 ```bash
+npm test
 node src/index.mjs --help
 npm pack --dry-run
 ```
 
-3. Log in to npm:
+## Cut a release
 
-```bash
-npm login
-```
+npm package versions are immutable. Every publish must use a new version.
 
-## Release a new version
-
-npm package versions are immutable. If `0.2.0` is already on npm, you must publish `0.2.1` or higher.
-
-Bump the package version:
-
-```bash
-npm version patch
-```
-
-Or, if you want to manage the git commit and tag yourself:
+Bump the package version without creating a git tag automatically:
 
 ```bash
 npm version patch --no-git-tag-version
 ```
 
-Publish the package:
+Commit the release:
 
 ```bash
-npm publish
+git add package.json
+git commit -m "build: release 0.2.3"
 ```
+
+Create and push the matching tag:
+
+```bash
+git tag v0.2.3
+git push origin main
+git push origin v0.2.3
+```
+
+The GitHub Actions workflow in `.github/workflows/publish.yml` verifies that the git tag matches the package version, runs the test suite, checks the packed contents, and publishes the package to npm through trusted publishing.
 
 ## Verify the published package
 
@@ -48,17 +56,9 @@ Check the live version:
 npm view codex-telegram-notifier version dist-tags --json
 ```
 
-Test the installed CLI:
+Test the public install path:
 
 ```bash
 npm install -g codex-telegram-notifier
 codex-telegram-notifier --help
 ```
-
-## Release notes
-
-When you prepare a release commit, include:
-
-- the new package version in `package.json`
-- any npm metadata updates such as `repository`, `homepage`, `bugs`, and `keywords`
-- README or docs changes that affect the install or publish flow
