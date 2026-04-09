@@ -92,7 +92,7 @@ Or copy the same keys into a local `.env` file in the project root. The CLI auto
 Once the values are set, send a test message:
 
 ```bash
-node src/index.mjs send \
+codex-telegram-notifier send \
   --status success \
   --title "Telegram notifier check" \
   --message "Credentials are configured."

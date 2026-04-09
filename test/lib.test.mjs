@@ -6,11 +6,15 @@ import path from "node:path";
 import {
   loadProjectEnv,
   parseBooleanLike,
+  parseDoctorArgs,
   parseDotenv,
+  parseInstallArgs,
   parseServeArgs,
   parseSendArgs,
+  parseUninstallArgs,
   parseWrapArgs,
   renderNotificationText,
+  resolveTelegramConfig,
   requireBearerToken,
   splitDoubleDash,
   validateStatus,
@@ -164,6 +168,86 @@ test("parseServeArgs applies env defaults", () => {
     process.env.NOTIFIER_PATH = previousEnv.NOTIFIER_PATH;
     process.env.NOTIFIER_AUTH_TOKEN = previousEnv.NOTIFIER_AUTH_TOKEN;
   }
+});
+
+test("parseServeArgs falls back to stored auth token", () => {
+  assert.deepEqual(
+    parseServeArgs([], {}, {
+      notifierAuthToken: "stored-secret",
+    }),
+    {
+      help: false,
+      host: "127.0.0.1",
+      port: 8787,
+      path: "/notify",
+      token: undefined,
+      chatId: undefined,
+      threadId: undefined,
+      apiBase: undefined,
+      authToken: "stored-secret",
+      disableNotification: false,
+    },
+  );
+});
+
+test("parseInstallArgs reads install flags", () => {
+  assert.deepEqual(
+    parseInstallArgs([
+      "--chat-id",
+      "123",
+      "--thread-id",
+      "42",
+      "--auth-token",
+      "secret",
+      "--skip-agents",
+      "--silent",
+    ]),
+    {
+      help: false,
+      token: undefined,
+      chatId: "123",
+      threadId: "42",
+      apiBase: undefined,
+      authToken: "secret",
+      disableNotification: true,
+      skipAgents: true,
+    },
+  );
+});
+
+test("parseUninstallArgs and parseDoctorArgs read boolean flags", () => {
+  assert.deepEqual(parseUninstallArgs(["--delete-config"]), {
+    help: false,
+    deleteConfig: true,
+  });
+  assert.deepEqual(parseDoctorArgs(["--send-test"]), {
+    help: false,
+    sendTest: true,
+  });
+});
+
+test("resolveTelegramConfig uses stored defaults when env is empty", () => {
+  assert.deepEqual(
+    resolveTelegramConfig(
+      {
+        defaults: {
+          telegramBotToken: "stored-token",
+          telegramChatId: "stored-chat",
+          telegramThreadId: "7",
+          telegramApiBase: "https://example.test/",
+          disableNotification: true,
+        },
+      },
+      {},
+    ),
+    {
+      token: "stored-token",
+      chatId: "stored-chat",
+      threadId: "7",
+      apiBase: "https://example.test",
+      disableNotification: true,
+    },
+  );
 });
 
 test("renderNotificationText builds readable telegram text", () => {

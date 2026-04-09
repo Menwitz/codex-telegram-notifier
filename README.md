@@ -171,3 +171,7 @@ node src/index.mjs doctor
 ```bash
 npm test
 ```
+
+## Publishing
+
+Release guidance for the npm package lives in [docs/publishing.md](./docs/publishing.md).

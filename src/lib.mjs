@@ -154,17 +154,28 @@ export function renderNotificationText({
 }
 
 export function resolveTelegramConfig(options = {}, env = process.env) {
-  const token = trimToUndefined(options.token) ?? trimToUndefined(env.TELEGRAM_BOT_TOKEN);
-  const chatId = trimToUndefined(options.chatId) ?? trimToUndefined(env.TELEGRAM_CHAT_ID);
+  const defaults = options.defaults ?? {};
+  const token =
+    trimToUndefined(options.token) ??
+    trimToUndefined(env.TELEGRAM_BOT_TOKEN) ??
+    trimToUndefined(defaults.telegramBotToken);
+  const chatId =
+    trimToUndefined(options.chatId) ??
+    trimToUndefined(env.TELEGRAM_CHAT_ID) ??
+    trimToUndefined(defaults.telegramChatId);
   const threadId =
-    trimToUndefined(options.threadId) ?? trimToUndefined(env.TELEGRAM_THREAD_ID);
+    trimToUndefined(options.threadId) ??
+    trimToUndefined(env.TELEGRAM_THREAD_ID) ??
+    trimToUndefined(defaults.telegramThreadId);
   const disableNotification =
     options.disableNotification ??
     parseBooleanLike(env.TELEGRAM_DISABLE_NOTIFICATION, "TELEGRAM_DISABLE_NOTIFICATION") ??
+    defaults.disableNotification ??
     false;
   const apiBase =
     trimToUndefined(options.apiBase) ??
     trimToUndefined(env.TELEGRAM_API_BASE) ??
+    trimToUndefined(defaults.telegramApiBase) ??
     "https://api.telegram.org";
 
   if (!token) {
@@ -183,30 +194,25 @@ export function resolveTelegramConfig(options = {}, env = process.env) {
   };
 }
 
-export async function sendTelegramMessage({
+export async function callTelegramApi({
   token,
-  chatId,
-  threadId,
-  disableNotification = false,
   apiBase = "https://api.telegram.org",
-  text,
+  method,
+  body,
   fetchImpl = globalThis.fetch,
 }) {
   if (typeof fetchImpl !== "function") {
     throw new Error("This runtime does not provide fetch. Use Node 20+.");
   }
 
-  const response = await fetchImpl(`${apiBase.replace(/\/+$/, "")}/bot${token}/sendMessage`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text,
-      disable_notification: disableNotification,
-      ...(threadId ? { message_thread_id: Number(threadId) } : {}),
-    }),
+  const response = await fetchImpl(`${apiBase.replace(/\/+$/, "")}/bot${token}/${method}`, {
+    method: body ? "POST" : "GET",
+    headers: body
+      ? {
+          "content-type": "application/json",
+        }
+      : undefined,
+    body: body ? JSON.stringify(body) : undefined,
   });
 
   let payload = null;
@@ -224,6 +230,33 @@ export async function sendTelegramMessage({
   }
 
   return payload.result;
+}
+
+export async function sendTelegramMessage({
+  token,
+  chatId,
+  threadId,
+  disableNotification = false,
+  apiBase = "https://api.telegram.org",
+  text,
+  fetchImpl = globalThis.fetch,
+}) {
+  if (typeof fetchImpl !== "function") {
+    throw new Error("This runtime does not provide fetch. Use Node 20+.");
+  }
+
+  return await callTelegramApi({
+    token,
+    apiBase,
+    method: "sendMessage",
+    body: {
+      chat_id: chatId,
+      text,
+      disable_notification: disableNotification,
+      ...(threadId ? { message_thread_id: Number(threadId) } : {}),
+    },
+    fetchImpl,
+  });
 }
 
 export function parseSendArgs(argv) {
@@ -309,7 +342,7 @@ export function parseWrapArgs(argv) {
   };
 }
 
-export function parseServeArgs(argv) {
+export function parseServeArgs(argv, env = process.env, defaults = {}) {
   const { values, positionals } = parseArgs({
     args: argv,
     allowPositionals: true,
@@ -333,21 +366,18 @@ export function parseServeArgs(argv) {
   }
 
   const port = Number(
-    trimToUndefined(values.port) ?? trimToUndefined(process.env.NOTIFIER_PORT) ?? "8787",
+    trimToUndefined(values.port) ?? trimToUndefined(env.NOTIFIER_PORT) ?? "8787",
   );
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
     throw new Error(`Invalid port "${values.port}".`);
   }
 
   const rawPath =
-    trimToUndefined(values.path) ?? trimToUndefined(process.env.NOTIFIER_PATH) ?? "/notify";
+    trimToUndefined(values.path) ?? trimToUndefined(env.NOTIFIER_PATH) ?? "/notify";
 
   return {
     help: values.help === true,
-    host:
-      trimToUndefined(values.host) ??
-      trimToUndefined(process.env.NOTIFIER_LISTEN_HOST) ??
-      "127.0.0.1",
+    host: trimToUndefined(values.host) ?? trimToUndefined(env.NOTIFIER_LISTEN_HOST) ?? "127.0.0.1",
     port,
     // Normalize the route once so callers can pass either "notify" or "/notify".
     path: rawPath.startsWith("/") ? rawPath : `/${rawPath}`,
@@ -356,8 +386,85 @@ export function parseServeArgs(argv) {
     threadId: values["thread-id"],
     apiBase: values["api-base"],
     authToken:
-      trimToUndefined(values["auth-token"]) ?? trimToUndefined(process.env.NOTIFIER_AUTH_TOKEN),
+      trimToUndefined(values["auth-token"]) ??
+      trimToUndefined(env.NOTIFIER_AUTH_TOKEN) ??
+      trimToUndefined(defaults.notifierAuthToken),
     disableNotification: values.silent === true,
+  };
+}
+
+export function parseInstallArgs(argv) {
+  const { values, positionals } = parseArgs({
+    args: argv,
+    allowPositionals: true,
+    strict: true,
+    options: {
+      help: { type: "boolean", short: "h" },
+      token: { type: "string" },
+      "chat-id": { type: "string" },
+      "thread-id": { type: "string" },
+      "api-base": { type: "string" },
+      "auth-token": { type: "string" },
+      silent: { type: "boolean" },
+      "skip-agents": { type: "boolean" },
+    },
+  });
+
+  if (positionals.length > 0) {
+    throw new Error(`Unexpected positional arguments: ${positionals.join(" ")}`);
+  }
+
+  return {
+    help: values.help === true,
+    token: values.token,
+    chatId: values["chat-id"],
+    threadId: values["thread-id"],
+    apiBase: values["api-base"],
+    authToken: values["auth-token"],
+    disableNotification: values.silent === true,
+    skipAgents: values["skip-agents"] === true,
+  };
+}
+
+export function parseUninstallArgs(argv) {
+  const { values, positionals } = parseArgs({
+    args: argv,
+    allowPositionals: true,
+    strict: true,
+    options: {
+      help: { type: "boolean", short: "h" },
+      "delete-config": { type: "boolean" },
+    },
+  });
+
+  if (positionals.length > 0) {
+    throw new Error(`Unexpected positional arguments: ${positionals.join(" ")}`);
+  }
+
+  return {
+    help: values.help === true,
+    deleteConfig: values["delete-config"] === true,
+  };
+}
+
+export function parseDoctorArgs(argv) {
+  const { values, positionals } = parseArgs({
+    args: argv,
+    allowPositionals: true,
+    strict: true,
+    options: {
+      help: { type: "boolean", short: "h" },
+      "send-test": { type: "boolean" },
+    },
+  });
+
+  if (positionals.length > 0) {
+    throw new Error(`Unexpected positional arguments: ${positionals.join(" ")}`);
+  }
+
+  return {
+    help: values.help === true,
+    sendTest: values["send-test"] === true,
   };
 }
 
@@ -426,17 +533,23 @@ export function requireBearerToken(headers, expectedToken) {
 }
 
 export function renderHelp() {
-  return `codex-telegram-notify
+  return `codex-telegram-notifier
 
 Usage:
-  node src/index.mjs send [options]
-  node src/index.mjs wrap [options] -- <command> [args...]
-  node src/index.mjs serve [options]
+  codex-telegram-notifier install [options]
+  codex-telegram-notifier uninstall [options]
+  codex-telegram-notifier doctor [options]
+  codex-telegram-notifier send [options]
+  codex-telegram-notifier wrap [options] -- <command> [args...]
+  codex-telegram-notifier serve [options]
 
 Commands:
-  send    Send a Telegram message immediately
-  wrap    Run a command and notify on success/failure
-  serve   Start a tiny HTTP endpoint that accepts POST /notify
+  install    Save notifier config and add a managed block to ~/.codex/AGENTS.md
+  uninstall  Remove the managed Codex block and optionally delete stored config
+  doctor     Validate the stored config, Telegram access, and Codex wiring
+  send       Send a Telegram message immediately
+  wrap       Run a command and notify on success/failure
+  serve      Start a tiny HTTP endpoint that accepts POST /notify
 
 Environment:
   TELEGRAM_BOT_TOKEN
@@ -448,5 +561,7 @@ Environment:
   NOTIFIER_PORT
   NOTIFIER_PATH
   NOTIFIER_AUTH_TOKEN
+  CODEX_HOME
+  CODEX_TELEGRAM_NOTIFIER_HOME
 `;
 }
