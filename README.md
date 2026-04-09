@@ -23,6 +23,8 @@ export TELEGRAM_THREAD_ID=""
 export NOTIFIER_AUTH_TOKEN="replace-me"
 ```
 
+The CLI also auto-loads `.env` and `.env.local` from the project root, so you can keep local credentials in the project directory without exporting them in every shell.
+
 ## Commands
 
 ### 1. Send a message directly

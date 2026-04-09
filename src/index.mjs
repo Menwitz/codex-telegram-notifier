@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 
 import http from "node:http";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
+  loadProjectEnv,
   parseJsonInput,
   parseSendArgs,
   parseServeArgs,
@@ -16,6 +19,9 @@ import {
   trimToUndefined,
   validateStatus,
 } from "./lib.mjs";
+
+const PROJECT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+loadProjectEnv(PROJECT_DIR, process.env);
 
 async function handleSend(argv) {
   const options = parseSendArgs(argv);

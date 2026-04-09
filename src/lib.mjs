@@ -1,4 +1,6 @@
+import fs from "node:fs";
 import { spawn } from "node:child_process";
+import path from "node:path";
 import { parseArgs } from "node:util";
 
 const STATUS_ICON = {
@@ -29,6 +31,57 @@ export function trimToUndefined(value) {
   }
   const normalized = String(value).trim();
   return normalized ? normalized : undefined;
+}
+
+export function parseDotenv(content) {
+  const result = {};
+
+  for (const rawLine of content.split(/\r?\n/u)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) {
+      continue;
+    }
+
+    const equalsIndex = line.indexOf("=");
+    if (equalsIndex === -1) {
+      continue;
+    }
+
+    const key = line.slice(0, equalsIndex).trim();
+    if (!key) {
+      continue;
+    }
+
+    let value = line.slice(equalsIndex + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    result[key] = value;
+  }
+
+  return result;
+}
+
+export function loadProjectEnv(projectDir, targetEnv = process.env) {
+  for (const filename of [".env", ".env.local"]) {
+    const filePath = path.join(projectDir, filename);
+    if (!fs.existsSync(filePath)) {
+      continue;
+    }
+
+    const parsed = parseDotenv(fs.readFileSync(filePath, "utf8"));
+    for (const [key, value] of Object.entries(parsed)) {
+      // Respect explicitly exported shell env vars over local file defaults.
+      if (targetEnv[key] === undefined) {
+        targetEnv[key] = value;
+      }
+    }
+  }
+
+  return targetEnv;
 }
 
 export function parseBooleanLike(value, fieldName) {

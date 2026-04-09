@@ -1,7 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import {
+  loadProjectEnv,
   parseBooleanLike,
+  parseDotenv,
   parseServeArgs,
   parseSendArgs,
   parseWrapArgs,
@@ -26,6 +31,45 @@ test("validateStatus rejects unknown values", () => {
 test("parseBooleanLike accepts common env values", () => {
   assert.equal(parseBooleanLike("true", "FIELD"), true);
   assert.equal(parseBooleanLike("0", "FIELD"), false);
+});
+
+test("parseDotenv reads basic key value pairs", () => {
+  assert.deepEqual(
+    parseDotenv(
+      [
+        "# comment",
+        "TELEGRAM_BOT_TOKEN=abc",
+        "TELEGRAM_CHAT_ID=\"123\"",
+        "TELEGRAM_THREAD_ID='42'",
+      ].join("\n"),
+    ),
+    {
+      TELEGRAM_BOT_TOKEN: "abc",
+      TELEGRAM_CHAT_ID: "123",
+      TELEGRAM_THREAD_ID: "42",
+    },
+  );
+});
+
+test("loadProjectEnv applies .env values without overriding existing env", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-telegram-env-"));
+  fs.writeFileSync(
+    path.join(tempDir, ".env"),
+    "TELEGRAM_CHAT_ID=123\nTELEGRAM_BOT_TOKEN=file-token\n",
+    "utf8",
+  );
+  fs.writeFileSync(path.join(tempDir, ".env.local"), "TELEGRAM_THREAD_ID=7\n", "utf8");
+
+  const env = {
+    TELEGRAM_BOT_TOKEN: "shell-token",
+  };
+  loadProjectEnv(tempDir, env);
+
+  assert.deepEqual(env, {
+    TELEGRAM_BOT_TOKEN: "shell-token",
+    TELEGRAM_CHAT_ID: "123",
+    TELEGRAM_THREAD_ID: "7",
+  });
 });
 
 test("parseSendArgs reads standard flags", () => {
