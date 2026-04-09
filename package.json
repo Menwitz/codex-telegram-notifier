@@ -1,6 +1,6 @@
 {
   "name": "codex-telegram-notifier",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Standalone Telegram notifier for Codex task and automation results",
   "license": "MIT",
   "homepage": "https://github.com/Menwitz/codex-telegram-notifier#readme",

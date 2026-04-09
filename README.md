@@ -63,6 +63,14 @@ It also adds a managed block to `~/.codex/AGENTS.md` so Codex knows to call the 
 
 For the longer version with direct-message, group, channel, and topic examples, see [docs/telegram-credentials.md](./docs/telegram-credentials.md).
 
+## Roadmap
+
+The product roadmap lives in [ROADMAP.md](./ROADMAP.md). It tracks the current baseline, version milestones, and the prioritized Codex-first backlog.
+
+## Release docs
+
+Release instructions live in [docs/publishing.md](./docs/publishing.md), and the step-by-step operator checklist lives in [docs/release-methodology.md](./docs/release-methodology.md).
+
 ## Health check
 
 Validate the setup:
