@@ -35,7 +35,7 @@ Before you run `install`, collect the Telegram values it needs:
 
    Copy `message.chat.id` from the JSON response and use it as `TELEGRAM_CHAT_ID`.
    Keep the minus sign for groups and supergroups. Public channels can also use `@channelusername`.
-3. Optional: get the topic/thread ID.
+3. Optional: get the topic or thread ID.
    If you send notifications into a Telegram topic, send a message inside that topic and copy `message.message_thread_id` from the same `getUpdates` response.
    Use that value as `TELEGRAM_THREAD_ID`.
 
@@ -77,18 +77,113 @@ Send a real test message as part of the doctor run:
 codex-telegram-notifier doctor --send-test
 ```
 
-## Remove the integration
+## How Codex should use it
 
-Remove the managed Codex rule but keep your stored config:
+The default `install` step adds a simple success or failure rule to `~/.codex/AGENTS.md`. That is enough to start getting notified, but you can get much better messages by asking Codex to send summaries, result counts, blockers, and artifact paths.
+
+The notifier is best used in one of these three ways:
+
+1. `send` when Codex finishes a task and you want a custom summary
+2. `wrap` when you already know the exact command that should run
+3. `serve` when you want Codex or another process to hit one stable local endpoint
+
+For a longer guide with copy-paste examples for Codex instructions and automations, see [docs/codex-integration.md](./docs/codex-integration.md).
+
+### Example: end-of-task summary
+
+Tell Codex to run this at the end of a task:
 
 ```bash
-codex-telegram-notifier uninstall
+codex-telegram-notifier send \
+  --status success \
+  --title "Codex task finished" \
+  --message "Added trusted npm publishing for codex-telegram-notifier." \
+  --details $'Result:\n- Added GitHub Actions publish workflow\n- Added MIT license\n- Tagged release v0.2.3'
 ```
 
-Remove both the rule and the stored config:
+### Example: blocked or failure result
 
 ```bash
-codex-telegram-notifier uninstall --delete-config
+codex-telegram-notifier send \
+  --status failure \
+  --title "Codex task blocked" \
+  --message "Publish workflow was added, but npm trusted publisher is not configured yet." \
+  --details $'Next step:\n- Open npm package settings\n- Add GitHub Actions trusted publisher for publish.yml'
+```
+
+### Example: result payload over JSON stdin
+
+This is useful when the result is structured and you want more than a one-line success or failure.
+
+```bash
+printf '%s\n' '{
+  "status": "success",
+  "title": "Nightly QA finished",
+  "message": "Regression suite completed.",
+  "details": "Passed: 128\nFailed: 2\nArtifacts: /tmp/qa-report.html"
+}' | codex-telegram-notifier send --json-stdin
+```
+
+### Example: wrap an exact command
+
+This is the fastest path if you already know the command you want to run and always want a Telegram result afterward.
+
+```bash
+codex-telegram-notifier wrap \
+  --title "Nightly build" \
+  --success-message "Build passed." \
+  --failure-message "Build failed." \
+  -- npm test
+```
+
+If you only want alerts on failures:
+
+```bash
+codex-telegram-notifier wrap --title "Nightly build" --only-failures -- npm test
+```
+
+`wrap` automatically includes the command, working directory, exit code, and finish time in the Telegram message.
+
+## Example Codex instructions
+
+If you want to customize the default managed rule, tell Codex to use richer messages like this:
+
+```text
+At the end of the task, always run codex-telegram-notifier.
+
+If the task succeeds:
+- use status success
+- summarize what changed
+- include key results such as counts, artifact paths, URLs, or next actions in --details
+
+If the task fails or is blocked:
+- use status failure
+- explain the blocker clearly
+- include the most useful next step in --details
+```
+
+### Example automation prompt
+
+This works well for recurring Codex automations:
+
+```text
+Run the nightly QA suite. When the run finishes, send a Telegram notification with:
+- overall status
+- total passed and failed counts
+- the main report path
+- whether follow-up is needed
+
+Use codex-telegram-notifier send for the final message.
+```
+
+### Example automation result message
+
+```bash
+codex-telegram-notifier send \
+  --status warning \
+  --title "Nightly QA needs review" \
+  --message "The automation completed, but two failures need attention." \
+  --details $'Results:\n- Passed: 128\n- Failed: 2\n- Report: /tmp/qa-report.html\n- Follow-up: inspect browser auth flow'
 ```
 
 ## Send a message directly
@@ -111,23 +206,12 @@ printf '%s\n' '{
 }' | codex-telegram-notifier send --json-stdin
 ```
 
-## Wrap another command
+Available statuses:
 
-This is the fastest path if you already know the command you want to run and always want a Telegram result afterward.
-
-```bash
-codex-telegram-notifier wrap \
-  --title "Nightly build" \
-  --success-message "Build passed." \
-  --failure-message "Build failed." \
-  -- npm test
-```
-
-If you only want alerts on failures:
-
-```bash
-codex-telegram-notifier wrap --title "Nightly build" --only-failures -- npm test
-```
+- `info`
+- `success`
+- `warning`
+- `failure`
 
 ## Run an HTTP endpoint
 
@@ -154,6 +238,40 @@ curl -X POST http://127.0.0.1:8787/notify \
     "title": "Codex task finished",
     "message": "Implemented the notifier project."
   }'
+```
+
+### Example HTTP payload with richer results
+
+The server accepts the same richer fields that the CLI can render:
+
+```bash
+curl -X POST http://127.0.0.1:8787/notify \
+  -H "Authorization: Bearer YOUR_AUTH_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "status": "warning",
+    "title": "Automation completed with findings",
+    "message": "Dependency audit finished.",
+    "details": "High: 1\nMedium: 3\nReport: /tmp/audit.json",
+    "command": "npm audit --json",
+    "cwd": "/workspace/project",
+    "exitCode": 1,
+    "finishedAt": "2026-04-09T12:34:56.000Z"
+  }'
+```
+
+## Remove the integration
+
+Remove the managed Codex rule but keep your stored config:
+
+```bash
+codex-telegram-notifier uninstall
+```
+
+Remove both the rule and the stored config:
+
+```bash
+codex-telegram-notifier uninstall --delete-config
 ```
 
 ## Source-tree development

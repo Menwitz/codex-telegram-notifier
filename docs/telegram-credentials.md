@@ -99,3 +99,7 @@ codex-telegram-notifier send \
 ```
 
 If Telegram accepts the request, the CLI prints a JSON response with `"ok": true`.
+
+## 7. Next step
+
+After your token and chat target work, see [docs/codex-integration.md](./codex-integration.md) for examples that show how Codex tasks and automations should send richer Telegram updates with summaries, results, blockers, and report paths.
