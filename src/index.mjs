@@ -12,6 +12,7 @@ import {
   parseDoctorArgs,
   parseInstallArgs,
   parseJsonInput,
+  normalizeNotificationResult,
   parseSendArgs,
   parseServeArgs,
   parseUninstallArgs,
@@ -24,7 +25,6 @@ import {
   runCommand,
   sendTelegramMessage,
   trimToUndefined,
-  validateStatus,
 } from "./lib.mjs";
 import {
   buildInstructionBlock,
@@ -73,13 +73,13 @@ Options:
   }
 
   const stdinPayload = options.jsonStdin ? parseJsonInput(await readStdin()) : {};
-  const status = validateStatus(options.status ?? stdinPayload.status);
-  const text = renderNotificationText({
-    status,
-    title: options.title ?? stdinPayload.title,
-    message: options.message ?? stdinPayload.message,
-    details: options.details ?? stdinPayload.details,
+  const notification = normalizeNotificationResult(stdinPayload, {
+    status: options.status,
+    title: options.title,
+    message: options.message,
+    details: options.details,
   });
+  const text = renderNotificationText(notification);
 
   if (!trimToUndefined(text)) {
     throw new Error("Notification text is empty.");
@@ -89,7 +89,7 @@ Options:
     token: options.token ?? stdinPayload.token,
     chatId: options.chatId ?? stdinPayload.chatId ?? stdinPayload.chat_id,
     threadId: options.threadId ?? stdinPayload.threadId ?? stdinPayload.thread_id,
-    apiBase: options.apiBase ?? stdinPayload.apiBase,
+    apiBase: options.apiBase ?? stdinPayload.apiBase ?? stdinPayload.api_base,
     disableNotification:
       options.disableNotification === true
         ? true
@@ -228,24 +228,18 @@ Options:
         req.on("error", reject);
       });
       const payload = parseJsonInput(rawBody);
-      const text = renderNotificationText({
-        status: validateStatus(payload.status),
-        title: payload.title,
-        message: payload.message,
-        details: payload.details,
-        command: payload.command,
-        cwd: payload.cwd,
-        exitCode: payload.exitCode,
-        finishedAt: payload.finishedAt,
-      });
+      const notification = normalizeNotificationResult(payload);
+      const text = renderNotificationText(notification);
 
       const result = await sendTelegramMessage({
         ...config,
         text,
-        chatId: trimToUndefined(payload.chatId) ?? config.chatId,
-        threadId: trimToUndefined(payload.threadId) ?? config.threadId,
+        chatId: trimToUndefined(payload.chatId ?? payload.chat_id) ?? config.chatId,
+        threadId: trimToUndefined(payload.threadId ?? payload.thread_id) ?? config.threadId,
         disableNotification:
-          payload.disableNotification === true || payload.silent === true
+          payload.disableNotification === true ||
+          payload.disable_notification === true ||
+          payload.silent === true
             ? true
             : config.disableNotification,
       });

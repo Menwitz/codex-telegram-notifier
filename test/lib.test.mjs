@@ -16,6 +16,7 @@ import {
   parseSendArgs,
   parseUninstallArgs,
   parseWrapArgs,
+  normalizeNotificationResult,
   renderHelp,
   renderNotificationText,
   resolveTelegramConfig,
@@ -266,12 +267,51 @@ test("resolveTelegramConfig uses stored defaults when env is empty", () => {
   );
 });
 
+test("normalizeNotificationResult standardizes structured result fields", () => {
+  assert.deepEqual(
+    normalizeNotificationResult({
+      status: "warning",
+      title: "Review needed",
+      message: "Nightly job finished.",
+      artifacts: {
+        report: "/tmp/report.html",
+      },
+      urls: [
+        {
+          label: "preview",
+          url: "https://example.test/build/123",
+        },
+      ],
+      next_action: "Inspect the failed auth flow.",
+      exitCode: "1",
+    }),
+    {
+      status: "warning",
+      title: "Review needed",
+      message: "Nightly job finished.",
+      details: undefined,
+      command: undefined,
+      cwd: undefined,
+      exitCode: 1,
+      finishedAt: undefined,
+      artifacts: ["report: /tmp/report.html"],
+      urls: ["preview: https://example.test/build/123"],
+      nextAction: "Inspect the failed auth flow.",
+    },
+  );
+});
+
 test("renderNotificationText builds readable telegram text", () => {
   assert.equal(
     renderNotificationText({
       status: "failure",
       title: "Nightly failed",
       message: "The job exited non-zero.",
+      artifacts: {
+        report: "/tmp/report.txt",
+      },
+      urls: ["https://example.test/job/123"],
+      nextAction: "Inspect the failure before rerunning.",
       command: "npm test",
       cwd: "/workspace",
       exitCode: 1,
@@ -280,6 +320,9 @@ test("renderNotificationText builds readable telegram text", () => {
     [
       "❌ Nightly failed",
       "The job exited non-zero.",
+      "artifacts:\n- report: /tmp/report.txt",
+      "urls:\n- https://example.test/job/123",
+      "next action: Inspect the failure before rerunning.",
       "command: npm test",
       "cwd: /workspace",
       "exit: 1",

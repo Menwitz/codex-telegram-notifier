@@ -9,6 +9,7 @@ const STATUS_ICON = {
   warning: "⚠️",
   failure: "❌",
 };
+const STRUCTURED_RESULT_ITEM_FIELDS = ["label", "title", "name", "path", "url", "value"];
 
 export function splitDoubleDash(argv) {
   const separatorIndex = argv.indexOf("--");
@@ -119,38 +120,84 @@ export function renderNotificationText({
   cwd,
   exitCode,
   finishedAt,
+  artifacts,
+  urls,
+  nextAction,
 }) {
-  const resolvedStatus = validateStatus(status);
+  const result = normalizeNotificationResult({
+    status,
+    title,
+    message,
+    details,
+    command,
+    cwd,
+    exitCode,
+    finishedAt,
+    artifacts,
+    urls,
+    nextAction,
+  });
+  const resolvedStatus = result.status;
   const sections = [];
   const resolvedTitle =
-    trimToUndefined(title) ?? `${STATUS_ICON[resolvedStatus]} Codex notification`;
+    trimToUndefined(result.title) ?? `${STATUS_ICON[resolvedStatus]} Codex notification`;
 
   sections.push(
-    trimToUndefined(title)
-      ? `${STATUS_ICON[resolvedStatus]} ${trimToUndefined(title)}`
+    trimToUndefined(result.title)
+      ? `${STATUS_ICON[resolvedStatus]} ${trimToUndefined(result.title)}`
       : resolvedTitle,
   );
 
-  if (trimToUndefined(message)) {
-    sections.push(trimToUndefined(message));
+  if (trimToUndefined(result.message)) {
+    sections.push(trimToUndefined(result.message));
   }
-  if (trimToUndefined(details)) {
-    sections.push(trimToUndefined(details));
+  if (trimToUndefined(result.details)) {
+    sections.push(trimToUndefined(result.details));
   }
-  if (trimToUndefined(command)) {
-    sections.push(`command: ${command}`);
+  if (result.artifacts.length > 0) {
+    sections.push(renderStructuredResultSection("artifacts", result.artifacts));
   }
-  if (trimToUndefined(cwd)) {
-    sections.push(`cwd: ${cwd}`);
+  if (result.urls.length > 0) {
+    sections.push(renderStructuredResultSection("urls", result.urls));
   }
-  if (exitCode !== undefined && exitCode !== null) {
-    sections.push(`exit: ${exitCode}`);
+  if (trimToUndefined(result.nextAction)) {
+    sections.push(`next action: ${result.nextAction}`);
   }
-  if (trimToUndefined(finishedAt)) {
-    sections.push(`finished: ${finishedAt}`);
+  if (trimToUndefined(result.command)) {
+    sections.push(`command: ${result.command}`);
+  }
+  if (trimToUndefined(result.cwd)) {
+    sections.push(`cwd: ${result.cwd}`);
+  }
+  if (result.exitCode !== undefined) {
+    sections.push(`exit: ${result.exitCode}`);
+  }
+  if (trimToUndefined(result.finishedAt)) {
+    sections.push(`finished: ${result.finishedAt}`);
   }
 
   return sections.join("\n\n");
+}
+
+export function normalizeNotificationResult(input = {}, overrides = {}) {
+  const payload = {
+    ...(isPlainObject(input) ? input : {}),
+    ...(isPlainObject(overrides) ? overrides : {}),
+  };
+
+  return {
+    status: validateStatus(payload.status),
+    title: trimToUndefined(payload.title),
+    message: trimToUndefined(payload.message),
+    details: trimToUndefined(payload.details),
+    command: trimToUndefined(payload.command),
+    cwd: trimToUndefined(payload.cwd),
+    exitCode: normalizeExitCode(payload.exitCode),
+    finishedAt: trimToUndefined(payload.finishedAt),
+    artifacts: normalizeStructuredResultItems(payload.artifacts),
+    urls: normalizeStructuredResultItems(payload.urls),
+    nextAction: trimToUndefined(payload.nextAction ?? payload.next_action),
+  };
 }
 
 export function resolveTelegramConfig(options = {}, env = process.env) {
@@ -553,6 +600,63 @@ export function requireBearerToken(headers, expectedToken) {
       : undefined;
 
   return bearerToken === expectedToken || headerToken === expectedToken;
+}
+
+function isPlainObject(value) {
+  return value !== null && typeof value === "object" && Array.isArray(value) === false;
+}
+
+function normalizeExitCode(value) {
+  if (value === undefined || value === null || value === "") {
+    return undefined;
+  }
+
+  const normalized = Number(value);
+  if (!Number.isInteger(normalized)) {
+    throw new Error(`Invalid exitCode "${value}". Use an integer.`);
+  }
+
+  return normalized;
+}
+
+function normalizeStructuredResultItems(value) {
+  if (value === undefined || value === null || value === "") {
+    return [];
+  }
+
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => normalizeStructuredResultItems(item));
+  }
+
+  if (typeof value === "string" || typeof value === "number") {
+    return [String(value)];
+  }
+
+  if (!isPlainObject(value)) {
+    throw new Error("Structured result fields must be strings, arrays, or objects.");
+  }
+
+  const hasDirectFields = STRUCTURED_RESULT_ITEM_FIELDS.some((field) => field in value);
+  if (hasDirectFields) {
+    const label = trimToUndefined(value.label ?? value.title ?? value.name);
+    const resolvedValue = trimToUndefined(value.path ?? value.url ?? value.value);
+    if (!resolvedValue) {
+      throw new Error("Structured result items must include a value, path, or url.");
+    }
+    return [label ? `${label}: ${resolvedValue}` : resolvedValue];
+  }
+
+  return Object.entries(value).flatMap(([label, itemValue]) => {
+    const resolvedValue = trimToUndefined(itemValue);
+    if (!resolvedValue) {
+      return [];
+    }
+    return [`${label}: ${resolvedValue}`];
+  });
+}
+
+function renderStructuredResultSection(title, items) {
+  return `${title}:\n${items.map((item) => `- ${item}`).join("\n")}`;
 }
 
 export function renderHelp() {
