@@ -8,9 +8,34 @@ The project supports three integration patterns:
 2. `wrap` for known commands that should always report their result
 3. `serve` for local HTTP callbacks from Codex or another scheduler
 
+It also supports three instruction profiles for Codex-facing guidance:
+
+- `basic` for simple success and failure notifications
+- `rich` for concise summaries plus useful result details
+- `automation` for unattended runs that should report counts, artifacts, blockers, and next actions
+
 ## 1. Let Codex send a final task summary
 
-The `install` command already adds a managed block to `~/.codex/AGENTS.md`, but advanced users usually want richer summaries than a simple success or failure line.
+The `install` command already adds a managed block to `~/.codex/AGENTS.md`, and you can now choose the style during install.
+
+Examples:
+
+```bash
+codex-telegram-notifier install --mode basic
+codex-telegram-notifier install --mode rich
+codex-telegram-notifier install --mode automation
+```
+
+`basic` keeps the existing low-friction success or failure behavior. `rich` is the best default when you want Codex to include a summary and meaningful details. `automation` is the best fit for recurring or unattended runs.
+
+If you want a copy-pasteable template without changing the managed install, print one directly:
+
+```bash
+codex-telegram-notifier print-instructions
+codex-telegram-notifier print-instructions --mode automation
+```
+
+The default `print-instructions` output is the recommended `rich` template unless you already have a stored mode from install.
 
 Use instructions like this:
 

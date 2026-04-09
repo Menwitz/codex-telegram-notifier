@@ -7,6 +7,7 @@ This project is intentionally separate from your application repos. It uses the 
 ## What it gives you
 
 - `install`: save notifier config and add a managed notification rule to `~/.codex/AGENTS.md`
+- `print-instructions`: print reusable Codex instruction templates for the notification style you want
 - `uninstall`: remove the managed Codex rule and optionally delete stored config
 - `doctor`: verify stored config, Telegram connectivity, and Codex wiring
 - `send`: send a Telegram message directly
@@ -51,8 +52,11 @@ Optional flags:
 
 - `--thread-id` for Telegram forum topics
 - `--auth-token` to persist an auth token for `serve`
+- `--mode basic|rich|automation` to choose the managed Codex instruction style during install
 - `--silent` to disable Telegram push notifications
 - `--skip-agents` if you only want stored config and do not want the Codex rule installed yet
+
+Install mode defaults to `basic` so the first-run behavior stays simple and backwards compatible.
 
 The install command writes user-level config to:
 
@@ -89,6 +93,15 @@ codex-telegram-notifier doctor --send-test
 
 The default `install` step adds a simple success or failure rule to `~/.codex/AGENTS.md`. That is enough to start getting notified, but you can get much better messages by asking Codex to send summaries, result counts, blockers, and artifact paths.
 
+If you want the managed rule to be more opinionated from the start:
+
+```bash
+codex-telegram-notifier install \
+  --token "123456:replace-me" \
+  --chat-id "123456789" \
+  --mode rich
+```
+
 The notifier is best used in one of these three ways:
 
 1. `send` when Codex finishes a task and you want a custom summary
@@ -96,6 +109,28 @@ The notifier is best used in one of these three ways:
 3. `serve` when you want Codex or another process to hit one stable local endpoint
 
 For a longer guide with copy-paste examples for Codex instructions and automations, see [docs/codex-integration.md](./docs/codex-integration.md).
+
+## Print Codex instructions
+
+Use `print-instructions` when you want a copy-pasteable instruction block without editing your managed install.
+
+Recommended mode defaults:
+
+- `basic`: minimal success or failure notifications
+- `rich`: end-of-task summaries with meaningful details
+- `automation`: result-heavy instructions for unattended runs
+
+Print the richer recommended template:
+
+```bash
+codex-telegram-notifier print-instructions
+```
+
+Print a specific mode:
+
+```bash
+codex-telegram-notifier print-instructions --mode automation
+```
 
 ### Example: end-of-task summary
 

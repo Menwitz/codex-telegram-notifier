@@ -428,6 +428,27 @@ export function parseInstallArgs(argv) {
   };
 }
 
+export function parsePrintInstructionsArgs(argv) {
+  const { values, positionals } = parseArgs({
+    args: argv,
+    allowPositionals: true,
+    strict: true,
+    options: {
+      help: { type: "boolean", short: "h" },
+      mode: { type: "string" },
+    },
+  });
+
+  if (positionals.length > 0) {
+    throw new Error(`Unexpected positional arguments: ${positionals.join(" ")}`);
+  }
+
+  return {
+    help: values.help === true,
+    mode: values.mode,
+  };
+}
+
 export function parseUninstallArgs(argv) {
   const { values, positionals } = parseArgs({
     args: argv,
@@ -539,6 +560,7 @@ export function renderHelp() {
 
 Usage:
   codex-telegram-notifier install [options]
+  codex-telegram-notifier print-instructions [options]
   codex-telegram-notifier uninstall [options]
   codex-telegram-notifier doctor [options]
   codex-telegram-notifier send [options]
@@ -546,12 +568,13 @@ Usage:
   codex-telegram-notifier serve [options]
 
 Commands:
-  install    Save notifier config and add a managed block to ~/.codex/AGENTS.md
-  uninstall  Remove the managed Codex block and optionally delete stored config
-  doctor     Validate the stored config, Telegram access, and Codex wiring
-  send       Send a Telegram message immediately
-  wrap       Run a command and notify on success/failure
-  serve      Start a tiny HTTP endpoint that accepts POST /notify
+  install             Save notifier config and add a managed block to ~/.codex/AGENTS.md
+  print-instructions  Print a reusable Codex instruction block for a notification mode
+  uninstall           Remove the managed Codex block and optionally delete stored config
+  doctor              Validate the stored config, Telegram access, and Codex wiring
+  send                Send a Telegram message immediately
+  wrap                Run a command and notify on success/failure
+  serve               Start a tiny HTTP endpoint that accepts POST /notify
 
 Environment:
   TELEGRAM_BOT_TOKEN

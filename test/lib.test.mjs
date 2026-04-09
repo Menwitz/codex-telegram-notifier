@@ -1,24 +1,30 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   loadProjectEnv,
   parseBooleanLike,
   parseDoctorArgs,
   parseDotenv,
   parseInstallArgs,
+  parsePrintInstructionsArgs,
   parseServeArgs,
   parseSendArgs,
   parseUninstallArgs,
   parseWrapArgs,
+  renderHelp,
   renderNotificationText,
   resolveTelegramConfig,
   requireBearerToken,
   splitDoubleDash,
   validateStatus,
 } from "../src/lib.mjs";
+
+const CLI_ENTRY = fileURLToPath(new URL("../src/index.mjs", import.meta.url));
 
 test("splitDoubleDash separates wrapper command args", () => {
   assert.deepEqual(splitDoubleDash(["--title", "Job", "--", "npm", "test"]), {
@@ -218,6 +224,13 @@ test("parseInstallArgs reads install flags", () => {
   );
 });
 
+test("parsePrintInstructionsArgs reads mode flags", () => {
+  assert.deepEqual(parsePrintInstructionsArgs(["--mode", "rich"]), {
+    help: false,
+    mode: "rich",
+  });
+});
+
 test("parseUninstallArgs and parseDoctorArgs read boolean flags", () => {
   assert.deepEqual(parseUninstallArgs(["--delete-config"]), {
     help: false,
@@ -288,4 +301,23 @@ test("requireBearerToken accepts bearer or x-notify-token", () => {
     requireBearerToken({ authorization: "Bearer wrong" }, "secret"),
     false,
   );
+});
+
+test("renderHelp includes print-instructions", () => {
+  assert.match(renderHelp(), /print-instructions/);
+});
+
+test("print-instructions emits the selected instruction template", () => {
+  const output = execFileSync(
+    process.execPath,
+    [CLI_ENTRY, "print-instructions", "--mode", "automation"],
+    {
+      cwd: path.dirname(CLI_ENTRY),
+      encoding: "utf8",
+    },
+  );
+
+  assert.match(output, /After completing a task or automation, always run/);
+  assert.match(output, /For unattended runs, prefer including:/);
+  assert.doesNotMatch(output, /codex-telegram-notifier:start/);
 });

@@ -7,6 +7,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   callTelegramApi,
+  parsePrintInstructionsArgs,
   loadProjectEnv,
   parseDoctorArgs,
   parseInstallArgs,
@@ -26,8 +27,10 @@ import {
   validateStatus,
 } from "./lib.mjs";
 import {
+  buildInstructionBlock,
   CLI_NAME,
   DEFAULT_INSTALL_MODE,
+  DEFAULT_PRINT_INSTRUCTIONS_MODE,
   deleteStoredConfig,
   getUserConfigPaths,
   installManagedAgentsBlock,
@@ -337,6 +340,29 @@ Options:
   );
 }
 
+async function handlePrintInstructions(argv) {
+  const options = parsePrintInstructionsArgs(argv);
+  if (options.help) {
+    process.stdout.write(
+      `Usage: ${CLI_NAME} print-instructions [options]
+
+Options:
+  --mode <basic|rich|automation>
+  -h, --help
+`,
+    );
+    return;
+  }
+
+  const storedConfig = getStoredConfig();
+  const mode = resolveInstructionMode(
+    options.mode ?? storedConfig.codexInstructionMode,
+    DEFAULT_PRINT_INSTRUCTIONS_MODE,
+  );
+
+  process.stdout.write(`${buildInstructionBlock(CLI_NAME, mode)}\n`);
+}
+
 async function handleUninstall(argv) {
   const options = parseUninstallArgs(argv);
   if (options.help) {
@@ -516,6 +542,10 @@ async function main() {
     }
     case "install": {
       await handleInstall(rest);
+      return;
+    }
+    case "print-instructions": {
+      await handlePrintInstructions(rest);
       return;
     }
     case "uninstall": {
