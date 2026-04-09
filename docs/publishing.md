@@ -14,28 +14,29 @@ This package is published as `codex-telegram-notifier`.
 
 ## Before a release
 
-Run the local checks:
+Run the release helper:
 
 ```bash
-npm test
-node src/index.mjs --help
-npm pack --dry-run
+npm run release:prepare
 ```
+
+That command runs the local checks used by the publish workflow:
+
+- `npm test`
+- `node src/index.mjs --help`
+- `npm pack --dry-run`
+
+It then prints the exact `git add`, `git commit`, `git tag`, and `git push` commands for the current `package.json` version.
 
 ## Next release example: `0.2.4`
 
 If `0.2.3` is already published, the next release must be `0.2.4` or higher.
 
-Commit the release version:
+After the helper passes, run the printed commands. They should look like this for `0.2.4`:
 
 ```bash
 git add package.json
 git commit -m "build: release 0.2.4"
-```
-
-Create and push the matching tag:
-
-```bash
 git tag v0.2.4
 git push origin main
 git push origin v0.2.4

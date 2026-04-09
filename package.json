@@ -30,7 +30,8 @@
     "codex-telegram-notify": "./src/index.mjs"
   },
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "release:prepare": "node scripts/release-prepare.mjs"
   },
   "engines": {
     "node": ">=20.0.0"
