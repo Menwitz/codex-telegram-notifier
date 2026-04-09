@@ -1,6 +1,6 @@
 {
   "name": "codex-telegram-notifier",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Standalone Telegram notifier for Codex task and automation results",
   "homepage": "https://github.com/Menwitz/codex-telegram-notifier#readme",
   "bugs": {
