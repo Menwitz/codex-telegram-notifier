@@ -24,6 +24,10 @@ jobs:
           node-version: "24"
           registry-url: "https://registry.npmjs.org"
 
+      # npm trusted publishing requires npm 11.5.1+.
+      - name: Set up npm
+        run: npm install --global npm@11.5.1
+
       - name: Verify tag matches package version
         run: |
           node --input-type=module -e '
