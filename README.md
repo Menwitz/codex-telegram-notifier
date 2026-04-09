@@ -167,6 +167,30 @@ printf '%s\n' '{
 }' | codex-telegram-notifier send --json-stdin
 ```
 
+### Example: structured result from a file
+
+When a task already writes JSON to disk, use `--result-file` instead of rebuilding the same payload as CLI flags.
+
+```bash
+codex-telegram-notifier send --result-file ./result.json
+```
+
+Useful structured result fields:
+
+- `status`
+- `title`
+- `message`
+- `details`
+- `command`
+- `cwd`
+- `exitCode`
+- `finishedAt`
+- `artifacts`
+- `urls`
+- `nextAction`
+
+`artifacts` and `urls` can be arrays or simple objects. Long sections are trimmed before sending so Telegram messages stay readable.
+
 ### Example: wrap an exact command
 
 This is the fastest path if you already know the command you want to run and always want a Telegram result afterward.
@@ -249,6 +273,12 @@ printf '%s\n' '{
 }' | codex-telegram-notifier send --json-stdin
 ```
 
+Or read the payload from a file:
+
+```bash
+codex-telegram-notifier send --result-file ./nightly-result.json
+```
+
 Available statuses:
 
 - `info`
@@ -299,7 +329,17 @@ curl -X POST http://127.0.0.1:8787/notify \
     "command": "npm audit --json",
     "cwd": "/workspace/project",
     "exitCode": 1,
-    "finishedAt": "2026-04-09T12:34:56.000Z"
+    "finishedAt": "2026-04-09T12:34:56.000Z",
+    "artifacts": {
+      "report": "/tmp/audit.json"
+    },
+    "urls": [
+      {
+        "label": "dashboard",
+        "url": "https://example.test/audits/123"
+      }
+    ],
+    "nextAction": "Review the high-severity finding before merging."
   }'
 ```
 

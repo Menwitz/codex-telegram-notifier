@@ -17,6 +17,7 @@ import {
   parseServeArgs,
   parseUninstallArgs,
   parseWrapArgs,
+  readJsonFile,
   readStdin,
   renderHelp,
   renderNotificationText,
@@ -60,6 +61,7 @@ Options:
   --message <text>
   --details <text>
   --status <info|success|warning|failure>
+  --result-file <path>
   --token <bot-token>
   --chat-id <chat-id>
   --thread-id <topic-id>
@@ -72,8 +74,11 @@ Options:
     return;
   }
 
+  // Layer structured input sources from least to most explicit.
+  const filePayload = options.resultFile ? readJsonFile(options.resultFile) : {};
   const stdinPayload = options.jsonStdin ? parseJsonInput(await readStdin()) : {};
   const notification = normalizeNotificationResult(stdinPayload, {
+    ...filePayload,
     status: options.status,
     title: options.title,
     message: options.message,

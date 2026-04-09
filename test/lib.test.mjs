@@ -17,6 +17,7 @@ import {
   parseUninstallArgs,
   parseWrapArgs,
   normalizeNotificationResult,
+  readJsonFile,
   renderHelp,
   renderNotificationText,
   resolveTelegramConfig,
@@ -92,6 +93,8 @@ test("parseSendArgs reads standard flags", () => {
       "Completed.",
       "--status",
       "success",
+      "--result-file",
+      "result.json",
       "--chat-id",
       "123",
       "--thread-id",
@@ -109,6 +112,7 @@ test("parseSendArgs reads standard flags", () => {
       title: "Task done",
       message: "Completed.",
       details: undefined,
+      resultFile: "result.json",
       disableNotification: true,
       jsonStdin: true,
     },
@@ -329,6 +333,47 @@ test("renderNotificationText builds readable telegram text", () => {
       "finished: 2026-04-09T12:00:00.000Z",
     ].join("\n\n"),
   );
+});
+
+test("renderNotificationText trims oversized sections cleanly", () => {
+  const longLines = Array.from({ length: 15 }, (_, index) => `line ${index + 1}`);
+  const manyArtifacts = Array.from({ length: 8 }, (_, index) => `artifact ${index + 1}`);
+
+  const text = renderNotificationText({
+    status: "success",
+    title: "Long report",
+    details: longLines.join("\n"),
+    artifacts: manyArtifacts,
+  });
+
+  assert.match(text, /line 12/);
+  assert.match(text, /\.\.\. \(3 more lines\)/);
+  assert.match(text, /artifact 6/);
+  assert.match(text, /\.\.\. \(2 more\)/);
+});
+
+test("readJsonFile loads JSON payloads from disk", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-telegram-result-file-"));
+  const filePath = path.join(tempDir, "result.json");
+  fs.writeFileSync(
+    filePath,
+    JSON.stringify({
+      status: "success",
+      title: "Loaded from file",
+      artifacts: {
+        report: "/tmp/report.html",
+      },
+    }),
+    "utf8",
+  );
+
+  assert.deepEqual(readJsonFile(filePath), {
+    status: "success",
+    title: "Loaded from file",
+    artifacts: {
+      report: "/tmp/report.html",
+    },
+  });
 });
 
 test("requireBearerToken accepts bearer or x-notify-token", () => {

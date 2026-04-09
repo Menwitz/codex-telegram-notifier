@@ -10,6 +10,11 @@ const STATUS_ICON = {
   failure: "❌",
 };
 const STRUCTURED_RESULT_ITEM_FIELDS = ["label", "title", "name", "path", "url", "value"];
+const MAX_NOTIFICATION_LENGTH = 3500;
+const MAX_SECTION_LINES = 12;
+const MAX_SECTION_LENGTH = 900;
+const MAX_STRUCTURED_ITEMS = 6;
+const MAX_LINE_LENGTH = 240;
 
 export function splitDoubleDash(argv) {
   const separatorIndex = argv.indexOf("--");
@@ -149,10 +154,10 @@ export function renderNotificationText({
   );
 
   if (trimToUndefined(result.message)) {
-    sections.push(trimToUndefined(result.message));
+    sections.push(formatMultilineSection(result.message));
   }
   if (trimToUndefined(result.details)) {
-    sections.push(trimToUndefined(result.details));
+    sections.push(formatMultilineSection(result.details));
   }
   if (result.artifacts.length > 0) {
     sections.push(renderStructuredResultSection("artifacts", result.artifacts));
@@ -164,19 +169,19 @@ export function renderNotificationText({
     sections.push(`next action: ${result.nextAction}`);
   }
   if (trimToUndefined(result.command)) {
-    sections.push(`command: ${result.command}`);
+    sections.push(`command: ${truncateLine(result.command)}`);
   }
   if (trimToUndefined(result.cwd)) {
-    sections.push(`cwd: ${result.cwd}`);
+    sections.push(`cwd: ${truncateLine(result.cwd)}`);
   }
   if (result.exitCode !== undefined) {
     sections.push(`exit: ${result.exitCode}`);
   }
   if (trimToUndefined(result.finishedAt)) {
-    sections.push(`finished: ${result.finishedAt}`);
+    sections.push(`finished: ${truncateLine(result.finishedAt)}`);
   }
 
-  return sections.join("\n\n");
+  return clampNotificationText(sections.join("\n\n"));
 }
 
 export function normalizeNotificationResult(input = {}, overrides = {}) {
@@ -321,6 +326,7 @@ export function parseSendArgs(argv) {
       title: { type: "string" },
       message: { type: "string" },
       details: { type: "string" },
+      "result-file": { type: "string" },
       silent: { type: "boolean" },
       "json-stdin": { type: "boolean" },
     },
@@ -340,6 +346,7 @@ export function parseSendArgs(argv) {
     title: values.title,
     message: values.message,
     details: values.details,
+    resultFile: values["result-file"],
     disableNotification: values.silent === true,
     jsonStdin: values["json-stdin"] === true,
   };
@@ -553,6 +560,15 @@ export function parseJsonInput(raw) {
   }
 }
 
+export function readJsonFile(filePath) {
+  const resolvedPath = trimToUndefined(filePath);
+  if (!resolvedPath) {
+    throw new Error("Expected a result file path.");
+  }
+
+  return parseJsonInput(fs.readFileSync(resolvedPath, "utf8"));
+}
+
 export async function readStdin() {
   const chunks = [];
   for await (const chunk of process.stdin) {
@@ -656,7 +672,50 @@ function normalizeStructuredResultItems(value) {
 }
 
 function renderStructuredResultSection(title, items) {
-  return `${title}:\n${items.map((item) => `- ${item}`).join("\n")}`;
+  const visibleItems = items.slice(0, MAX_STRUCTURED_ITEMS).map((item) => `- ${truncateLine(item)}`);
+  if (items.length > MAX_STRUCTURED_ITEMS) {
+    visibleItems.push(`- ... (${items.length - MAX_STRUCTURED_ITEMS} more)`);
+  }
+  return `${title}:\n${visibleItems.join("\n")}`;
+}
+
+function formatMultilineSection(value) {
+  const normalized = trimToUndefined(value);
+  if (!normalized) {
+    return undefined;
+  }
+
+  const lines = normalized.split(/\r?\n/u).map((line) => truncateLine(line));
+  const visibleLines = lines.slice(0, MAX_SECTION_LINES);
+  let section = visibleLines.join("\n");
+
+  if (lines.length > MAX_SECTION_LINES) {
+    section = `${section}\n... (${lines.length - MAX_SECTION_LINES} more lines)`;
+  }
+
+  if (section.length > MAX_SECTION_LENGTH) {
+    section = `${section.slice(0, MAX_SECTION_LENGTH - 18).trimEnd()}\n... (truncated)`;
+  }
+
+  return section;
+}
+
+function truncateLine(value, maxLength = MAX_LINE_LENGTH) {
+  const normalized = trimToUndefined(value);
+  if (!normalized || normalized.length <= maxLength) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, maxLength - 15).trimEnd()}... (truncated)`;
+}
+
+function clampNotificationText(value) {
+  if (value.length <= MAX_NOTIFICATION_LENGTH) {
+    return value;
+  }
+
+  // Leave headroom below Telegram's hard cap so appended truncation markers still fit.
+  return `${value.slice(0, MAX_NOTIFICATION_LENGTH - 18).trimEnd()}\n\n... (truncated)`;
 }
 
 export function renderHelp() {

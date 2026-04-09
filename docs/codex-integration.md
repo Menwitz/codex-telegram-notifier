@@ -98,6 +98,28 @@ printf '%s\n' '{
 }' | codex-telegram-notifier send --json-stdin
 ```
 
+If the task already writes a JSON artifact, read it directly:
+
+```bash
+codex-telegram-notifier send --result-file ./nightly-result.json
+```
+
+Recommended structured result fields:
+
+- `status`
+- `title`
+- `message`
+- `details`
+- `command`
+- `cwd`
+- `exitCode`
+- `finishedAt`
+- `artifacts`
+- `urls`
+- `nextAction`
+
+`artifacts` and `urls` can be arrays of strings, arrays of labeled objects, or simple objects keyed by label. The notifier trims oversized sections automatically before sending the Telegram message.
+
 ## 4. Wrap a command that should always report
 
 Use `wrap` when the task is just one command and you want the notifier to handle success, failure, command text, working directory, exit code, and finish time automatically.
@@ -166,7 +188,17 @@ curl -X POST http://127.0.0.1:8787/notify \
     "command": "npm audit --json",
     "cwd": "/workspace/project",
     "exitCode": 1,
-    "finishedAt": "2026-04-09T12:34:56.000Z"
+    "finishedAt": "2026-04-09T12:34:56.000Z",
+    "artifacts": {
+      "report": "/tmp/audit.json"
+    },
+    "urls": [
+      {
+        "label": "dashboard",
+        "url": "https://example.test/audits/123"
+      }
+    ],
+    "nextAction": "Review the high-severity finding before merging."
   }'
 ```
 
@@ -180,6 +212,9 @@ Useful fields for result-rich HTTP payloads:
 - `cwd`
 - `exitCode`
 - `finishedAt`
+- `artifacts`
+- `urls`
+- `nextAction`
 - `chatId`
 - `threadId`
 
